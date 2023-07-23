@@ -32,9 +32,13 @@ type Erc20 = {
   allowance(owner: PublicKey, spender: PublicKey): UInt64;
 
   // mutations which need @method
+  mint(amount: UInt64): Bool;
+  burn(amount: UInt64): Bool;
   transfer(to: PublicKey, value: UInt64): Bool; // emits "Transfer" event
   transferFrom(from: PublicKey, to: PublicKey, value: UInt64): Bool; // emits "Transfer" event
-  approveSpend(spender: PublicKey, value: UInt64): Bool; // emits "Approve" event
+  approveSpend(spender: PublicKey, value: UInt64): Bool; // emits "Approval" event
+  increaseAllowance(spender: PublicKey, addedValue: UInt64): Bool; // emits "Approval" event
+  decreaseAllowance(spender: PublicKey, subtractedValue: UInt64): Bool; // emits "Approval" event
 
   // events
   events: {
@@ -61,7 +65,7 @@ type Erc20 = {
  * Functionality:
  * Just enough to be swapped by the DEX contract, and be secure
  */
-class TrivialCoin extends SmartContract implements Erc20 {
+class FungibleToken extends SmartContract implements Erc20 {
   // constant supply
   SUPPLY = UInt64.from(10n ** 18n);
 
@@ -136,8 +140,16 @@ class TrivialCoin extends SmartContract implements Erc20 {
     return Bool(true);
   }
   @method approveSpend(spender: PublicKey, value: UInt64): Bool {
-    // TODO: implement allowances
-    return Bool(false);
+    this.emitEvent('Approval', { owner: this.sender, spender, value });
+    return Bool(true);
+  }
+  @method increaseAllowance(spender: PublicKey, addedValue: UInt64): Bool {
+    this.approveSpend(spender, addedValue);
+    return Bool(true);
+  }
+  @method decreaseAllowance(spender: PublicKey, subtractedValue: UInt64): Bool {
+    this.approveSpend(spender, subtractedValue);
+    return Bool(true);
   }
 
   events = {
