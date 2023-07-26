@@ -16,7 +16,30 @@ import {
   Mina,
   Int64,
   VerificationKey,
+  state,
+  State,
+  Poseidon,
+  MerkleTree,
+  MerkleWitness,
+  Struct,
 } from 'snarkyjs';
+
+class MyMerkleWitness extends MerkleWitness(8) {}
+
+class Allowance extends Struct({
+  owner: PublicKey,
+  spender: PublicKey,
+  value: UInt64,
+}) {
+  hash(): Field {
+    return Poseidon.hash(Allowance.toFields(this));
+  }
+}
+
+// we need the initiate tree root in order to tell the contract about our off-chain storage
+let initialCommitment: Field = Field(0);
+
+const tokenSymbol = 'FT';
 
 /**
  * ERC-20 token standard.
@@ -29,16 +52,16 @@ type Erc20 = {
   decimals?: () => Field; // TODO: should be UInt8 which doesn't exist yet
   totalSupply(): UInt64;
   balanceOf(owner: PublicKey): UInt64;
-  allowance(owner: PublicKey, spender: PublicKey): UInt64;
+  allowance(owner: PublicKey, spender: PublicKey, path: MyMerkleWitness): UInt64;
 
   // mutations which need @method
-  mint(amount: UInt64): Bool;
+  mint(account: PublicKey, amount: UInt64): Bool;
   burn(amount: UInt64): Bool;
   transfer(to: PublicKey, value: UInt64): Bool; // emits "Transfer" event
   transferFrom(from: PublicKey, to: PublicKey, value: UInt64): Bool; // emits "Transfer" event
-  approveSpend(spender: PublicKey, value: UInt64): Bool; // emits "Approval" event
-  increaseAllowance(spender: PublicKey, addedValue: UInt64): Bool; // emits "Approval" event
-  decreaseAllowance(spender: PublicKey, subtractedValue: UInt64): Bool; // emits "Approval" event
+  approveSpend(spender: PublicKey, value: UInt64, path: MyMerkleWitness): Bool; // emits "Approval" event
+  increaseAllowance(spender: PublicKey, addedValue: UInt64, path: MyMerkleWitness): Bool; // emits "Approval" event
+  decreaseAllowance(spender: PublicKey, subtractedValue: UInt64, path: MyMerkleWitness): Bool; // emits "Approval" event
 
   // events
   events: {
@@ -65,56 +88,43 @@ type Erc20 = {
  * Functionality:
  * Just enough to be swapped by the DEX contract, and be secure
  */
-class FungibleToken extends SmartContract implements Erc20 {
-  // constant supply
-  SUPPLY = UInt64.from(10n ** 18n);
+export class FungibleToken extends SmartContract implements Erc20 {
+  @state(UInt64) totalAmountInCirculation = State<UInt64>();
+  @state(Field) commitment = State<Field>();
 
   deploy(args: DeployArgs) {
     super.deploy(args);
-    this.account.tokenSymbol.set('SOM');
+
+    const permissionToEdit = Permissions.proof();
+
     this.account.permissions.set({
       ...Permissions.default(),
-      setPermissions: Permissions.proof(),
+      editState: permissionToEdit,
+      setTokenSymbol: permissionToEdit,
+      send: permissionToEdit,
+      receive: permissionToEdit,
     });
   }
+
   @method init() {
     super.init();
-
-    // mint the entire supply to the token account with the same address as this contract
-    let address = this.self.body.publicKey;
-    let receiver = this.token.mint({
-      address,
-      amount: this.SUPPLY,
-    });
-    // assert that the receiving account is new, so this can be only done once
-    receiver.account.isNew.assertEquals(Bool(true));
-    // pay fees for opened account
-    this.balance.subInPlace(Mina.accountCreationFee());
-
-    // since this is the only method of this zkApp that resets the entire state, provedState: true implies
-    // that this function was run. Since it can be run only once, this implies it was run exactly once
-
-    // make account non-upgradable forever
-    this.account.permissions.set({
-      ...Permissions.default(),
-      setVerificationKey: Permissions.impossible(),
-      setPermissions: Permissions.impossible(),
-      access: Permissions.proofOrSignature(),
-    });
+    this.account.tokenSymbol.set(tokenSymbol);
+    this.totalAmountInCirculation.set(UInt64.zero);
+    this.commitment.set(initialCommitment);
   }
 
   // ERC20 API
   name(): CircuitString {
-    return CircuitString.fromString('SomeCoin');
+    return CircuitString.fromString('FungibleToken');
   }
   symbol(): CircuitString {
-    return CircuitString.fromString('SOM');
+    return CircuitString.fromString(tokenSymbol);
   }
   decimals(): Field {
-    return Field(9);
+    return Field(18);
   }
   totalSupply(): UInt64 {
-    return this.SUPPLY;
+    return this.totalAmountInCirculation.get();
   }
   balanceOf(owner: PublicKey): UInt64 {
     let account = Account(owner, this.token.id);
@@ -122,11 +132,27 @@ class FungibleToken extends SmartContract implements Erc20 {
     account.balance.assertEquals(balance);
     return balance;
   }
-  allowance(owner: PublicKey, spender: PublicKey): UInt64 {
-    // TODO: implement allowances
+  allowance(owner: PublicKey, spender: PublicKey, path: MyMerkleWitness): UInt64 {
+    Allowance.get('Bob')?.value;
     return UInt64.zero;
   }
 
+  @method mint(account: PublicKey, amount: UInt64) {
+    let totalAmountInCirculation = this.totalAmountInCirculation.get();
+    this.totalAmountInCirculation.assertEquals(totalAmountInCirculation);
+    let newTotalAmountInCirculation = totalAmountInCirculation.add(amount);
+    this.token.mint({ address: account, amount });
+    this.totalAmountInCirculation.set(newTotalAmountInCirculation);
+    return Bool(true);
+  }
+  @method burn(amount: UInt64): Bool {
+    let totalAmountInCirculation = this.totalAmountInCirculation.get();
+    this.totalAmountInCirculation.assertEquals(totalAmountInCirculation);
+    let newTotalAmountInCirculation = totalAmountInCirculation.sub(amount);
+    this.token.burn({ address: this.sender, amount });
+    this.totalAmountInCirculation.set(newTotalAmountInCirculation);
+    return Bool(true);
+  }
   @method transfer(to: PublicKey, value: UInt64): Bool {
     this.token.send({ from: this.sender, to, amount: value });
     this.emitEvent('Transfer', { from: this.sender, to, value });
@@ -134,21 +160,29 @@ class FungibleToken extends SmartContract implements Erc20 {
     return Bool(true);
   }
   @method transferFrom(from: PublicKey, to: PublicKey, value: UInt64): Bool {
+    this.allowance(from, this.sender, witness).assertGreaterThanOrEqual(value);
     this.token.send({ from, to, amount: value });
     this.emitEvent('Transfer', { from, to, value });
     // we don't have to check the balance of the sender -- this is done by the zkApp protocol
     return Bool(true);
   }
-  @method approveSpend(spender: PublicKey, value: UInt64): Bool {
+  @method approveSpend(spender: PublicKey, value: UInt64, path: MyMerkleWitness): Bool {
+    // we update the account and approve spend
+    let newAllowance = new Allowance({ owner: this.sender, spender, value });
+    // we calculate the new Merkle Root, based on the account changes
+    let newCommitment = path.calculateRoot(newAllowance.hash());
+    this.commitment.set(newCommitment);
     this.emitEvent('Approval', { owner: this.sender, spender, value });
     return Bool(true);
   }
-  @method increaseAllowance(spender: PublicKey, addedValue: UInt64): Bool {
-    this.approveSpend(spender, addedValue);
+  @method increaseAllowance(spender: PublicKey, addedValue: UInt64, path: MyMerkleWitness): Bool {
+    let currentValue = this.allowance(this.sender, spender, witness);
+    this.approveSpend(spender, currentValue.add(addedValue), path);
     return Bool(true);
   }
-  @method decreaseAllowance(spender: PublicKey, subtractedValue: UInt64): Bool {
-    this.approveSpend(spender, subtractedValue);
+  @method decreaseAllowance(spender: PublicKey, subtractedValue: UInt64, path: MyMerkleWitness): Bool {
+    let currentValue = this.allowance(this.sender, spender, witness);
+    this.approveSpend(spender, currentValue.sub(subtractedValue), path);
     return Bool(true);
   }
 
