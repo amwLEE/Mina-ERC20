@@ -35,7 +35,7 @@ const functions = {
   },
   initZkappInstance: async (args: { publicKey58: string }) => {
     const publicKey = PublicKey.fromBase58(args.publicKey58);
-    state.zkapp = new state.Add!(publicKey);
+    //state.zkapp = new state.Add!(publicKey);
   },
   getNum: async (args: {}) => {
     const currentNum = await state.zkapp!.num.get();
