@@ -10,8 +10,8 @@ const nextConfig = {
    * when deployed to GitHub Pages. The assetPrefix needs to be added manually to any assets
    * if they're not loaded by Next.js' automatic handling (for example, in CSS files or in a <img> element).
    */
-  basePath: isProd ? '/04-zkapp-browser-ui': '',
-  assetPrefix: isProd ? '/04-zkapp-browser-ui': '',
+  basePath: isProd ? '/Mina-ERC20': '',
+  assetPrefix: isProd ? '/Mina-ERC20': '',
 
   webpack(config) {
     config.resolve.alias = {
