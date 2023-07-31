@@ -18,26 +18,7 @@ import {
   VerificationKey,
   state,
   State,
-  Poseidon,
-  MerkleTree,
-  MerkleWitness,
-  Struct,
 } from 'snarkyjs';
-
-class MyMerkleWitness extends MerkleWitness(8) {}
-
-class Allowance extends Struct({
-  owner: PublicKey,
-  spender: PublicKey,
-  value: UInt64,
-}) {
-  hash(): Field {
-    return Poseidon.hash(Allowance.toFields(this));
-  }
-}
-
-// we need the initiate tree root in order to tell the contract about our off-chain storage
-let initialCommitment: Field = Field(0);
 
 const tokenSymbol = 'FT';
 
@@ -52,16 +33,16 @@ type Erc20 = {
   decimals?: () => Field; // TODO: should be UInt8 which doesn't exist yet
   totalSupply(): UInt64;
   balanceOf(owner: PublicKey): UInt64;
-  allowance(owner: PublicKey, spender: PublicKey, path: MyMerkleWitness): UInt64;
+  allowance(owner: PublicKey, spender: PublicKey): UInt64;
 
   // mutations which need @method
   mint(account: PublicKey, amount: UInt64): Bool;
   burn(amount: UInt64): Bool;
   transfer(to: PublicKey, value: UInt64): Bool; // emits "Transfer" event
   transferFrom(from: PublicKey, to: PublicKey, value: UInt64): Bool; // emits "Transfer" event
-  approveSpend(spender: PublicKey, value: UInt64, path: MyMerkleWitness): Bool; // emits "Approval" event
-  increaseAllowance(spender: PublicKey, addedValue: UInt64, path: MyMerkleWitness): Bool; // emits "Approval" event
-  decreaseAllowance(spender: PublicKey, subtractedValue: UInt64, path: MyMerkleWitness): Bool; // emits "Approval" event
+  approveSpend(spender: PublicKey, value: UInt64): Bool; // emits "Approval" event
+  increaseAllowance(spender: PublicKey, addedValue: UInt64): Bool; // emits "Approval" event
+  decreaseAllowance(spender: PublicKey, subtractedValue: UInt64): Bool; // emits "Approval" event
 
   // events
   events: {
@@ -90,7 +71,7 @@ type Erc20 = {
  */
 export class FungibleToken extends SmartContract implements Erc20 {
   @state(UInt64) totalAmountInCirculation = State<UInt64>();
-  @state(Field) commitment = State<Field>();
+  @state(Map<PublicKey, Map<PublicKey, Field>>) allowances = State<Map<PublicKey, Map<PublicKey, Field>>>();
 
   deploy(args: DeployArgs) {
     super.deploy(args);
@@ -110,7 +91,6 @@ export class FungibleToken extends SmartContract implements Erc20 {
     super.init();
     this.account.tokenSymbol.set(tokenSymbol);
     this.totalAmountInCirculation.set(UInt64.zero);
-    this.commitment.set(initialCommitment);
   }
 
   // ERC20 API
@@ -132,9 +112,11 @@ export class FungibleToken extends SmartContract implements Erc20 {
     account.balance.assertEquals(balance);
     return balance;
   }
-  allowance(owner: PublicKey, spender: PublicKey, path: MyMerkleWitness): UInt64 {
-    Allowance.get('Bob')?.value;
-    return UInt64.zero;
+  allowance(owner: PublicKey, spender: PublicKey): UInt64 {
+    // Fetch the allowances for the owner
+    let ownerAllowances = this.allowances.getOrDefault(owner, new Map());
+    // Return the allowance for the spender or 0 if none is set
+    return ownerAllowances.getOrDefault(spender, UInt64.zero);
   }
 
   @method mint(account: PublicKey, amount: UInt64) {
@@ -166,7 +148,7 @@ export class FungibleToken extends SmartContract implements Erc20 {
     // we don't have to check the balance of the sender -- this is done by the zkApp protocol
     return Bool(true);
   }
-  @method approveSpend(spender: PublicKey, value: UInt64, path: MyMerkleWitness): Bool {
+  @method approveSpend(spender: PublicKey, value: UInt64): Bool {
     // we update the account and approve spend
     let newAllowance = new Allowance({ owner: this.sender, spender, value });
     // we calculate the new Merkle Root, based on the account changes
@@ -175,12 +157,12 @@ export class FungibleToken extends SmartContract implements Erc20 {
     this.emitEvent('Approval', { owner: this.sender, spender, value });
     return Bool(true);
   }
-  @method increaseAllowance(spender: PublicKey, addedValue: UInt64, path: MyMerkleWitness): Bool {
+  @method increaseAllowance(spender: PublicKey, addedValue: UInt64): Bool {
     let currentValue = this.allowance(this.sender, spender, witness);
     this.approveSpend(spender, currentValue.add(addedValue), path);
     return Bool(true);
   }
-  @method decreaseAllowance(spender: PublicKey, subtractedValue: UInt64, path: MyMerkleWitness): Bool {
+  @method decreaseAllowance(spender: PublicKey, subtractedValue: UInt64): Bool {
     let currentValue = this.allowance(this.sender, spender, witness);
     this.approveSpend(spender, currentValue.sub(subtractedValue), path);
     return Bool(true);
