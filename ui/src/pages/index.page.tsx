@@ -235,21 +235,74 @@ export default function Home() {
 
   let mainContent;
   if (state.hasBeenSetup && state.accountExists) {
+    type InputType = 'text' | 'number' | 'password' | 'email' | 'date' | 'color' | 'datetime-local' | 'month' | 'range' | 'search' | 'tel' | 'time' | 'url' | 'week';
+    interface InputField {
+      type: InputType;
+      placeholder: string;
+    }
+    interface ButtonRowProps {
+      buttonName: string;
+      onClick: (inputValues: string[]) => void;
+      inputFields?: InputField[];
+    }
+    const ButtonRow: React.FC<ButtonRowProps> = ({ buttonName, onClick, inputFields = [] }) => {
+      const [inputValues, setInputValues] = useState<string[]>(Array(inputFields.length).fill(''));
+      const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>, index: number) => {
+        const newInputValues = [...inputValues];
+        newInputValues[index] = event.target.value;
+        setInputValues(newInputValues);
+      };
+      const handleClick = () => {
+        onClick(inputValues);
+        setInputValues(Array(inputFields.length).fill('')); // Reset the inputs after button click
+      };
+      return (
+        <div className={styles.row}>
+          <button
+            className={styles.card}
+            onClick={handleClick}
+            disabled={state.creatingTransaction}
+          >
+            {buttonName}
+          </button>
+          {inputFields.map((field, index) => (
+            <input
+              key={index}
+              className={styles.input}
+              type={field.type}
+              placeholder={field.placeholder}
+              value={inputValues[index]}
+              onChange={(event) => handleInputChange(event, index)}
+            />
+          ))}
+        </div>
+      );
+    };    
+
     mainContent = (
       <div style={{ justifyContent: 'center', alignItems: 'center' }}>
         <div className={styles.center} style={{ padding: 0 }}>
-          Current state in zkApp: {state.currentNum!.toString()}{' '}
+          Read Contract
         </div>
-        <button
-          className={styles.card}
-          onClick={onSendTransaction}
-          disabled={state.creatingTransaction}
-        >
-          Send Transaction
-        </button>
-        <button className={styles.card} onClick={onRefreshCurrentNum}>
-          Get Latest State
-        </button>
+        <ButtonRow buttonName="name" onClick={onSendTransaction} />
+        <ButtonRow buttonName="symbol" onClick={onSendTransaction} />
+        <ButtonRow buttonName="decimals" onClick={onSendTransaction} />
+        <ButtonRow buttonName="totalSupply" onClick={onSendTransaction} />
+        <ButtonRow buttonName="balanceOf" onClick={onSendTransaction} inputFields={[{ type: 'text', placeholder: 'account' }]} />
+        <ButtonRow buttonName="allowance" onClick={onSendTransaction} inputFields={[{ type: 'text', placeholder: 'owner' }, { type: 'text', placeholder: 'spender' }]} />
+        
+        <div style={{ height: '3rem' }}></div>
+        <div className={styles.center} style={{ padding: 0 }}>
+          Write Contract
+        </div>
+        <ButtonRow buttonName="mint" onClick={onSendTransaction} inputFields={[{ type: 'number', placeholder: 'amount' }]} />
+        <ButtonRow buttonName="burn" onClick={onSendTransaction} inputFields={[{ type: 'number', placeholder: 'amount' }]} />
+        <ButtonRow buttonName="transfer" onClick={onSendTransaction} inputFields={[{ type: 'text', placeholder: 'recipient' }, { type: 'number', placeholder: 'amount' }]} />
+        <ButtonRow buttonName="approve" onClick={onSendTransaction} inputFields={[{ type: 'text', placeholder: 'spender' }, { type: 'number', placeholder: 'amount' }]} />
+        <ButtonRow buttonName="transferFrom" onClick={onSendTransaction} inputFields={[{ type: 'text', placeholder: 'sender' }, { type: 'text', placeholder: 'recipient' }, { type: 'number', placeholder: 'amount' }]} />
+        <ButtonRow buttonName="increaseAllowance" onClick={onSendTransaction} inputFields={[{ type: 'text', placeholder: 'spender' }, { type: 'number', placeholder: 'addedValue' }]} />
+        <ButtonRow buttonName="decreaseAllowance" onClick={onSendTransaction} inputFields={[{ type: 'text', placeholder: 'spender' }, { type: 'number', placeholder: 'subtractedValue' }]} />
+        <div style={{ height: '3rem' }}></div>
       </div>
     );
   }
