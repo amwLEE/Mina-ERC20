@@ -2,7 +2,7 @@
   "name": "mina-erc20",
   "version": "0.1.0",
   "description": "",
-  "author": "",
+  "author": "Amanda Lee <amanda.lee.22@ucl.ac.uk>",
   "license": "Apache-2.0",
   "keywords": [
     "mina-zkapp",
@@ -48,5 +48,3 @@
     "snarkyjs": "0.12.1"
   }
 }
-
-

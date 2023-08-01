@@ -10,8 +10,8 @@ const nextConfig = {
    * when deployed to GitHub Pages. The assetPrefix needs to be added manually to any assets
    * if they're not loaded by Next.js' automatic handling (for example, in CSS files or in a <img> element).
    */
-  basePath: isProd ? '/Mina-ERC20': '',
-  assetPrefix: isProd ? '/Mina-ERC20': '',
+  basePath: isProd ? '/Mina-ERC20': '', // update if your repo name changes for npm run deploy to work successfully
+  assetPrefix: isProd ? '/Mina-ERC20': '', // update if your repo name changes for npm run deploy to work successfully
 
   webpack(config) {
     config.resolve.alias = {

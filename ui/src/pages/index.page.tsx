@@ -254,7 +254,7 @@ export default function Home() {
       };
       const handleClick = () => {
         onClick(inputValues);
-        setInputValues(Array(inputFields.length).fill('')); // Reset the inputs after button click
+        setInputValues(Array(inputFields.length).fill(''));
       };
       return (
         <div className={styles.row}>
@@ -298,8 +298,8 @@ export default function Home() {
         <ButtonRow buttonName="mint" onClick={onSendTransaction} inputFields={[{ type: 'number', placeholder: 'amount' }]} />
         <ButtonRow buttonName="burn" onClick={onSendTransaction} inputFields={[{ type: 'number', placeholder: 'amount' }]} />
         <ButtonRow buttonName="transfer" onClick={onSendTransaction} inputFields={[{ type: 'text', placeholder: 'recipient' }, { type: 'number', placeholder: 'amount' }]} />
-        <ButtonRow buttonName="approve" onClick={onSendTransaction} inputFields={[{ type: 'text', placeholder: 'spender' }, { type: 'number', placeholder: 'amount' }]} />
         <ButtonRow buttonName="transferFrom" onClick={onSendTransaction} inputFields={[{ type: 'text', placeholder: 'sender' }, { type: 'text', placeholder: 'recipient' }, { type: 'number', placeholder: 'amount' }]} />
+        <ButtonRow buttonName="approve" onClick={onSendTransaction} inputFields={[{ type: 'text', placeholder: 'spender' }, { type: 'number', placeholder: 'amount' }]} />
         <ButtonRow buttonName="increaseAllowance" onClick={onSendTransaction} inputFields={[{ type: 'text', placeholder: 'spender' }, { type: 'number', placeholder: 'addedValue' }]} />
         <ButtonRow buttonName="decreaseAllowance" onClick={onSendTransaction} inputFields={[{ type: 'text', placeholder: 'spender' }, { type: 'number', placeholder: 'subtractedValue' }]} />
         <div style={{ height: '3rem' }}></div>
